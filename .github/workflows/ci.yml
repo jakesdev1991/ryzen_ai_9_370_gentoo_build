@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    <param name: Documentation & Config Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Markdown
+        uses: markdownlint-cli2-action@v15
+        with:
+          config: .markdownlint.json
+      
+      - name: Check shell scripts
+        run: |
+          shellcheck scripts/*.sh || true
+      
+      - name: Validate Gentoo configs
+        run: |
+          if command -v ebuild &> /dev/null; then
+            ebuild configs/*.ebuild manifest || true
+          fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: .
+          base: main
+          head: HEAD
+
+  docs:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for README
+        run: test -f README.md
+      
+      - name: Validate markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
